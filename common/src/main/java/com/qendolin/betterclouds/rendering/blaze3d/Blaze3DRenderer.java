@@ -13,8 +13,7 @@ import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
 import com.qendolin.betterclouds.BetterCloudsStatic;
-import com.qendolin.betterclouds.compat.DhCompat;
-import com.qendolin.betterclouds.compat.VoxyCompat;
+import com.qendolin.betterclouds.compat.*;
 import com.qendolin.betterclouds.config.Config;
 import com.qendolin.betterclouds.config.ConfigManager;
 import com.qendolin.betterclouds.generator.ChunkedGenerator;
@@ -24,6 +23,7 @@ import com.qendolin.betterclouds.rendering.*;
 import com.qendolin.betterclouds.rendering.opengl.Debug;
 import com.qendolin.betterclouds.rendering.opengl.Resources;
 import com.qendolin.betterclouds.util.MathUtil;
+import net.irisshaders.iris.Iris;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.BindGroupLayouts;
@@ -386,7 +386,7 @@ public class Blaze3DRenderer extends CloudRenderer {
                 .withShaderDefine("NEAR_CLOUD_FADE", params.nearCloudFade() ? 1 : 0)
                 .withShaderDefine("NEAR_FADE_DIST", 40)
                 .withShaderDefine("LOD_ENABLED", params.distantHorizons() || params.voxy() ? 1 : 0)
-                .withShaderDefine("REVERSE_Z", !DhCompat.instance().isNativeRenderer() && !params.iris() ? 1 : 0)
+                .withShaderDefine("REVERSE_Z", params.reverseZ() ? 1 : 0)
                 .withShaderDefine("Z_NEG1_TO_1", params.zNeg1To1() ? 1 : 0)
                 .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
                 .withBindGroupLayout(SHADER_BIND_GROUP)
@@ -414,6 +414,19 @@ public class Blaze3DRenderer extends CloudRenderer {
                         Optional.of(BlendFunction.TRANSLUCENT_PREMULTIPLIED_ALPHA),
                         destinationFormat, ColorTargetState.WRITE_ALL))
                 .build();
+    }
+
+    public static boolean isReverseZ() {
+        Matrix4f matrix = DhCompat.instance().getProjectionMatrix();
+        if (matrix == null)
+            matrix = VoxyCompat.instance.getProjectionMatrix();
+        if (matrix == null)
+            return true;
+
+        // -z is forwards in MC, meaning z=1 is closer than z=0
+        Vector4f closeMul = new Vector4f(0, 0, 1, 1).mul(matrix);
+        Vector4f farMul = new Vector4f(0, 0, 0, 1).mul(matrix);
+        return closeMul.z / closeMul.w > farMul.z / farMul.w;
     }
 
     private void drawWithFrustumCulling(RenderPass pass, Frustum frustumAtOrigin) {
